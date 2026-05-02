@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لعبة قيم سورة يوسف</title>
+    <style>
+        :root { --rope-pos: 50%; }
+        body { font-family: 'Cairo', sans-serif; margin: 0; background: #2c3e50; color: white; height: 100vh; overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+        #start-screen, #level-screen, #end-screen { position: fixed; inset: 0; background: radial-gradient(circle, #34495e, #2c3e50); z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .btn { padding: 15px 50px; font-size: 1.8rem; background: #27ae60; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 8px 0 #1e8449; transition: 0.2s; font-weight: bold; }
+        .main-container { display: none; width: 98vw; height: 98vh; gap: 10px; padding: 10px; box-sizing: border-box; }
+        .panel { flex: 1; background: white; border-radius: 20px; padding: 10px; display: flex; flex-direction: column; color: #333; box-shadow: 0 10px 25px rgba(0,0,0,0.4); position: relative; }
+        .blue-border { border-top: 10px solid #2980b9; }
+        .red-border { border-top: 10px solid #c0392b; }
+        .question-box { background: #f4f7f6; padding: 10px; border-radius: 12px; min-height: 60px; text-align: center; font-size: 1.1rem; font-weight: bold; border: 2px dashed #bdc3c7; display: flex; align-items: center; justify-content: center; line-height: 1.3; }
+        .display-text { font-size: 1.6rem; min-height: 40px; background: #eef2f3; margin: 5px 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #27ae60; font-weight: bold; transition: 0.2s; }
+        .error-flash { background: #fab1a0 !important; color: #c0392b !important; transform: scale(1.05); }
+        
+        .kb { display: grid; grid-template-columns: repeat(9, 1fr); gap: 3px; margin-bottom: 5px; position: relative; z-index: 2; }
+        .key { background: #fff; border: 1px solid #ddd; border-radius: 5px; font-size: 0.95rem; font-weight: bold; cursor: pointer; height: 38px; display: flex; justify-content: center; align-items: center; box-shadow: 0 3px #ccc; user-select: none; }
+        .key.del { grid-column: span 1; background: #e67e22; color: white; border: none; }
+        .key.space { grid-column: span 2; background: #34495e; color: white; border: none; }
+        
+        /* تم رفع الصور قليلاً إضافياً لضبط التوازن */
+        .player-container { text-align: center; margin-top: -15px; position: relative; z-index: 1; pointer-events: none; } 
+        .player-img { width: 95px; height: auto; }
+        .red-team-img { filter: hue-rotate(140deg) saturate(1.6) brightness(0.9); transform: scaleX(-1); }
+
+        .arena { flex: 0.4; background: #ecf0f1; border-radius: 20px; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; height: 80%; align-self: center; }
+        .center-mark { position: absolute; height: 100%; width: 2px; border-left: 2px dotted #bdc3c7; left: 50%; top: 0; z-index: 1; }
+        .rope-container { width: 100%; height: 60px; position: relative; display: flex; align-items: center; }
+        .rope { width: 100%; height: 12px; background: linear-gradient(to bottom, #8d6e63, #5d4037, #8d6e63); border-radius: 7px; z-index: 5; }
+        .fire { position: absolute; left: var(--rope-pos); top: 5px; transform: translateX(-50%); width: 25px; height: 40px; z-index: 10; transition: left 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .fire::before { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; height: 100%; background: radial-gradient(ellipse at bottom, #fff 0%, #ffeb3b 20%, #f39c12 50%, transparent 100%); border-radius: 50% 50% 20% 20%; filter: blur(1px); animation: flame-move 0.15s infinite alternate; }
+        @keyframes flame-move { from { height: 38px; } to { height: 43px; } }
+    </style>
+</head>
+<body>
+
+<div id="start-screen">
+    <h1 style="color:#f1c40f; font-size:3rem; text-shadow: 2px 2px #000;">سباق قيم يوسف</h1>
+    <button class="btn" onclick="startLevel(0)">ابدأ السباق</button>
+</div>
+
+<div id="level-screen" style="display:none;">
+    <h2 id="lvl-title" style="color:#f1c40f; font-size:2rem; text-align:center; padding:20px;"></h2>
+    <button class="btn" onclick="hideLvlScreen()">انطلق!</button>
+</div>
+
+<div id="end-screen" style="display:none;">
+    <h1 id="winner-msg" style="font-size:3rem;"></h1>
+    <button class="btn" onclick="location.reload()">لعب مرة أخرى</button>
+</div>
+
+<div class="main-container" id="game-ui">
+    <div class="panel blue-border">
+        <div style="display:flex; justify-content:space-between; font-weight:bold; color:#2980b9; font-size:1.2rem;"><span>فريق الصدق</span><span id="s-blue">0</span></div>
+        <div class="question-box" id="q-blue"></div>
+        <div class="display-text" id="in-blue"></div>
+        <div class="kb" id="kb-blue"></div>
+        <div class="player-container"><img src="https://cdn-icons-png.flaticon.com/512/4140/4140047.png" class="player-img"></div>
+    </div>
+    <div class="arena">
+        <div class="center-mark"></div>
+        <div class="rope-container"><div class="rope"></div><div class="fire"></div></div>
+    </div>
+    <div class="panel red-border">
+        <div style="display:flex; justify-content:space-between; font-weight:bold; color:#c0392b; font-size:1.2rem;"><span id="s-red">0</span><span>فريق اليقين</span></div>
+        <div class="question-box" id="q-red"></div>
+        <div class="display-text" id="in-red"></div>
+        <div class="kb" id="kb-red"></div>
+        <div class="player-container"><img src="https://cdn-icons-png.flaticon.com/512/4140/4140047.png" class="player-img red-team-img"></div>
+    </div>
+</div>
+
+<audio id="clap-sfx" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3"></audio>
+<audio id="fail-sfx" src="https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.mp3"></audio>
+
+<script>
+    const levels = [
+        { title: "المرحلة 1: في كنف الأب والبئر", questions: [
+            { q: "بماذا بادر يعقوب ابنه يوسف حين أمره بكتمان الرؤيا؟", a: "النصيحة" },
+            { q: "رعاية يعقوب ليوسف وتفضيله له يجسد قيمة...؟", a: "رعاية الطفل" },
+            { q: "إلقاء يوسف في الجب من طرف إخوته يفتقد لقيمة...؟", a: "الأمانة" },
+            { q: "طمأنينة يوسف في الجب وتلقيه لوحي الله تمثل قيمة...؟", a: "اليقين" }
+        ]},
+        { title: "المرحلة 2: الابتلاء والدعوة", questions: [
+            { q: "قول العزيز لزوجته (أكرمي مثواه) يجسد قيمة...؟", a: "الإكرام" },
+            { q: "امتناع يوسف عن الاستجابة لامرأة العزيز يمثل قيمة...؟", a: "العفة" },
+            { q: "تفضيل يوسف للسجن صيانةً لنفسه يمثل أرقى درجات...؟", a: "الحياء" },
+            { q: "استغلال يوسف لوجوده في السجن لدعوة رفاقه يمثل...؟", a: "تبليغ العلم" }
+        ]},
+        { title: "المرحلة 3: التمكين والسياسة", questions: [
+            { q: "تفسير يوسف لرؤيا السجينين يجسد قيمة...؟", a: "الإحسان" },
+            { q: "تخطيط يوسف لإنقاذ الناس من القحط يجسد قيمة...؟", a: "عمارة الأرض" },
+            { q: "حوار يوسف مع إخوته لرد بضاعتهم وجلب أخيه يمثل...؟", a: "التفاوض" },
+            { q: "تصدق يوسف على إخوته وإكرامهم بعد إساءتهم يمثل...؟", a: "التسامح" }
+        ]},
+        { title: "المرحلة 4: الوفاء وجمع الشمل", questions: [
+            { q: "سجود الإخوة والأبوين ليوسف كان إعلاناً عن...؟", a: "تحقق الرؤيا" },
+            { q: "استغفار يوسف لإخوته (لا تثريب عليكم اليوم) يمثل...؟", a: "العفو" },
+            { q: "رفع يوسف لأبويه على العرش يجسد قيمة...؟", a: "بر الوالدين" },
+            { q: "نسب يوسف كل النعم لله في خاتمة القصة يمثل...؟", a: "الاعتراف بفضل الله" }
+        ]}
+    ];
+
+    const keys = ["ا","أ","إ","آ","ب","ت","ة","ث","ج","ح","خ","د","ذ","ر","ز","س","ش","ص","ض","ط","ظ","ع","غ","ف","ق","ك","ل","م","ن","هـ","ه","و","ؤ","ي","ئ","ء"];
+    let currentLvl = 0, currentQ = 0, ropeX = 50, scores = { blue: 0, red: 0 }, inputs = { blue: "", red: "" };
+
+    function startLevel(idx) { 
+        currentLvl = idx; currentQ = 0; 
+        document.getElementById('start-screen').style.display = 'none'; 
+        document.getElementById('end-screen').style.display = 'none'; 
+        document.getElementById('lvl-title').innerText = levels[idx].title; 
+        document.getElementById('level-screen').style.display = 'flex'; 
+    }
+
+    function hideLvlScreen() { 
+        document.getElementById('level-screen').style.display = 'none'; 
+        document.getElementById('game-ui').style.display = 'flex'; 
+        loadQ(); 
+    }
+
+    function createKbs() { 
+        ['blue', 'red'].forEach(s => { 
+            const kb = document.getElementById(`kb-${s}`); 
+            kb.innerHTML = ''; 
+            keys.forEach(k => { 
+                const b = document.createElement('div'); 
+                b.className = 'key'; b.innerText = k; 
+                b.onclick = () => { 
+                    let char = (k === "هـ") ? "ه" : k;
+                    handleInput(s, char); 
+                }; 
+                kb.appendChild(b); 
+            }); 
+            const sp = document.createElement('div'); sp.className = 'key space'; sp.innerText = 'مسافة'; sp.onclick = () => { handleInput(s, ' '); }; kb.appendChild(sp);
+            const d = document.createElement('div'); d.className = 'key del'; d.innerText = 'حذف'; d.onclick = () => { inputs[s] = ""; render(); }; kb.appendChild(d); 
+        }); 
+    }
+
+    function handleInput(side, char) {
+        const correctAns = levels[currentLvl].questions[currentQ].a.replace(/هـ/g, "ه");
+        const currentInput = inputs[side] + char;
+        if (correctAns.startsWith(currentInput)) {
+            inputs[side] += char; render(); check(side);
+        } else {
+            document.getElementById('fail-sfx').currentTime = 0; document.getElementById('fail-sfx').play();
+            const display = document.getElementById(`in-${side}`);
+            display.classList.add('error-flash'); setTimeout(() => display.classList.remove('error-flash'), 300);
+        }
+    }
+
+    function render() { 
+        document.getElementById('in-blue').innerText = inputs.blue; 
+        document.getElementById('in-red').innerText = inputs.red; 
+    }
+
+    function check(s) { 
+        const correctAns = levels[currentLvl].questions[currentQ].a.replace(/هـ/g, "ه");
+        if (inputs[s] === correctAns) { 
+            document.getElementById('clap-sfx').currentTime = 0; document.getElementById('clap-sfx').play(); 
+            if(s === 'blue') { ropeX += 8; scores.blue++; } else { ropeX -= 8; scores.red++; } 
+            document.documentElement.style.setProperty('--rope-pos', ropeX + '%'); 
+            document.getElementById('s-blue').innerText = scores.blue; 
+            document.getElementById('s-red').innerText = scores.red; 
+            inputs.blue = ""; inputs.red = ""; 
+            currentQ++; 
+            if(currentQ < levels[currentLvl].questions.length) setTimeout(loadQ, 800); 
+            else setTimeout(nextStep, 1000); 
+        } 
+    }
+
+    function loadQ() { 
+        document.getElementById('q-blue').innerText = levels[currentLvl].questions[currentQ].q; 
+        document.getElementById('q-red').innerText = levels[currentLvl].questions[currentQ].q; 
+        render(); 
+    }
+
+    function nextStep() { 
+        if (currentLvl < levels.length - 1) { 
+            document.getElementById('game-ui').style.display = 'none'; 
+            startLevel(currentLvl + 1); 
+        } else { 
+            document.getElementById('game-ui').style.display = 'none'; 
+            document.getElementById('end-screen').style.display = 'flex'; 
+            document.getElementById('winner-msg').innerText = scores.blue > scores.red ? "🏆 فاز فريق الصدق!" : "🏆 فاز فريق اليقين!"; 
+        } 
+    }
+    createKbs();
+</script>
+</body>
+</html>
